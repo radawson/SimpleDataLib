@@ -27,11 +27,11 @@
         {
           "name": "simpledatalib-0.1.088-SNAPSHOT.jar",
           "url": "simpledatalib-0.1.088-SNAPSHOT.jar",
-          "size": 78706,
-          "sha512": "9901655c7b7d3f500295686eb7eab5d5bd3bc9056d27b18075cea95c0a2d2cca82a3032be418e688ece83337b73b470892d131b8b3b3e4268fe77c31b4e21e53",
-          "sha256": "96037bd567e61752551aaefe38db86a852fab34e8aa3eeedb98749f69a9ce066",
-          "sha1": "87ad723b11a55698d554b2804ec2130ecae6a980",
-          "md5": "6b0d23d6a6538a23ccc8aff7bf5efff9"
+          "size": 77502,
+          "sha512": "05914389e1f00159131a64ea53745f9a0680b70966286e18cd04ee84252371adebe9634840cfeb2a6746b6cc90c229cbb02824e49a9af782b825abea9924b7ac",
+          "sha256": "bcb887365b30558f2252a8a7f51a8cf623ac3da7673f6b8371ea7615ebece626",
+          "sha1": "f2883fe5ec673630d90591f1ab7eae8ce8f876b5",
+          "md5": "714214a0a8956266099213eb6e38f4cc"
         }
       ]
     },
@@ -57,11 +57,11 @@
         {
           "name": "simpledatalib-0.1.088-SNAPSHOT.jar",
           "url": "simpledatalib-0.1.088-SNAPSHOT.jar",
-          "size": 78706,
-          "sha512": "9901655c7b7d3f500295686eb7eab5d5bd3bc9056d27b18075cea95c0a2d2cca82a3032be418e688ece83337b73b470892d131b8b3b3e4268fe77c31b4e21e53",
-          "sha256": "96037bd567e61752551aaefe38db86a852fab34e8aa3eeedb98749f69a9ce066",
-          "sha1": "87ad723b11a55698d554b2804ec2130ecae6a980",
-          "md5": "6b0d23d6a6538a23ccc8aff7bf5efff9"
+          "size": 77502,
+          "sha512": "05914389e1f00159131a64ea53745f9a0680b70966286e18cd04ee84252371adebe9634840cfeb2a6746b6cc90c229cbb02824e49a9af782b825abea9924b7ac",
+          "sha256": "bcb887365b30558f2252a8a7f51a8cf623ac3da7673f6b8371ea7615ebece626",
+          "sha1": "f2883fe5ec673630d90591f1ab7eae8ce8f876b5",
+          "md5": "714214a0a8956266099213eb6e38f4cc"
         }
       ]
     }

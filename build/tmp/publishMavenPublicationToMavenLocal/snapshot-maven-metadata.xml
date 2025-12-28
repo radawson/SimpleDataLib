@@ -3,25 +3,25 @@
   <groupId>regalowl.simpledatalib</groupId>
   <artifactId>simpledatalib</artifactId>
   <versioning>
-    <lastUpdated>20251228031715</lastUpdated>
+    <lastUpdated>20251228032528</lastUpdated>
     <snapshot>
       <localCopy>true</localCopy>
     </snapshot>
     <snapshotVersions>
       <snapshotVersion>
-        <extension>jar</extension>
+        <extension>pom</extension>
         <value>0.1.088-SNAPSHOT</value>
-        <updated>20251228031715</updated>
+        <updated>20251228032528</updated>
       </snapshotVersion>
       <snapshotVersion>
         <extension>module</extension>
         <value>0.1.088-SNAPSHOT</value>
-        <updated>20251228031715</updated>
+        <updated>20251228032528</updated>
       </snapshotVersion>
       <snapshotVersion>
-        <extension>pom</extension>
+        <extension>jar</extension>
         <value>0.1.088-SNAPSHOT</value>
-        <updated>20251228031715</updated>
+        <updated>20251228032528</updated>
       </snapshotVersion>
     </snapshotVersions>
   </versioning>

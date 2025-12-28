@@ -1,0 +1,18 @@
+# SimpleDataLib Development Rules
+
+## API Preferences
+- **Always prefer PaperAPI over deprecated Bukkit functions**
+- When Bukkit API methods are deprecated or removed, use Paper API equivalents
+- Use Paper's Tag API for material checking when applicable
+- Prefer modern Java APIs (NIO.2, CompletableFuture, ScheduledExecutorService) over legacy APIs
+
+## Code Style
+- Include, expand, and enhance docstrings
+- Do not remove comments unless they are no longer valid
+- Update README.md with any applicable additions or changes
+- When there are multiple functions, variables, or text keys we should keep them in order, except for getters and setters, which will be ordered by the variable they get or set
+- Attempt to replace any deprecated functions or variables that are identified in the linter
+
+## Package Naming
+- Package namespace: `regalowl.simpledatalib.*` (external library, not renamed)
+
