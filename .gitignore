@@ -4,6 +4,13 @@ build/
 !gradle/wrapper/gradle-wrapper.jar
 gradle/wrapper/gradle-wrapper.properties.bak
 
+# Gradle lock files
+*.lock
+*.lockfile
+gradle.lockfile
+dependency-lock.json
+gradle/dependency-lock.json
+
 # IDE
 .idea/
 *.iml
@@ -29,6 +36,14 @@ Desktop.ini
 target/
 out/
 bin/
+
+# Gradle build artifacts
+*.reobf.jar
+*-paper.jar
+*-all.jar
+*-shadow.jar
+dist/
+libs/
 
 # Maven (if used)
 dependency-reduced-pom.xml
