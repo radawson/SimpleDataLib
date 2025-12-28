@@ -1,19 +1,20 @@
 package regalowl.simpledatalib.file;
 
 import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
 import java.io.IOException;
-import java.io.OutputStreamWriter;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.HashMap;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Pattern;
 
 import org.yaml.snakeyaml.DumperOptions;
+import org.yaml.snakeyaml.LoaderOptions;
 import org.yaml.snakeyaml.Yaml;
 import org.yaml.snakeyaml.constructor.SafeConstructor;
-import org.yaml.snakeyaml.reader.UnicodeReader;
 import org.yaml.snakeyaml.representer.Representer;
 
 import regalowl.simpledatalib.SimpleDataLib;
@@ -23,9 +24,10 @@ import regalowl.simpledatalib.events.LogLevel;
 public class FileConfiguration {
 	
 	private SimpleDataLib sdl;
-	private ConcurrentHashMap<String, Object> data = new ConcurrentHashMap<String, Object>();
+	private ConcurrentHashMap<String, Object> data = new ConcurrentHashMap<>();
 	private Yaml yaml;
 	private File file;
+	private Path filePath;
 	private boolean broken;
 	
     public FileConfiguration(SimpleDataLib sdl, File file) {
@@ -33,8 +35,10 @@ public class FileConfiguration {
         DumperOptions options = new DumperOptions();
         options.setIndent(2);
         options.setDefaultFlowStyle(DumperOptions.FlowStyle.BLOCK);
-        yaml = new Yaml(new SafeConstructor(), new Representer(), options);
+        LoaderOptions loaderOptions = new LoaderOptions();
+        yaml = new Yaml(new SafeConstructor(loaderOptions), new Representer(options), options);
         this.file = file;
+        this.filePath = file.toPath();
         broken = false;
     }
     
@@ -49,10 +53,11 @@ public class FileConfiguration {
     
 	@SuppressWarnings("unchecked")
 	public void load() {
-		FileInputStream stream = null;
 		try {
-			stream = new FileInputStream(file);
-			Object input = yaml.load(new UnicodeReader(stream));
+			if (!Files.exists(filePath)) {
+				return;
+			}
+			Object input = yaml.load(Files.newBufferedReader(filePath, StandardCharsets.UTF_8));
 			if (input != null) {
 				HashMap<String, Object> iData = (HashMap<String, Object>) input;
 				data.putAll(iData);
@@ -60,36 +65,20 @@ public class FileConfiguration {
 		} catch (Exception e) {
 			broken = true;
 			sdl.getEventPublisher().fireEvent(new LogEvent("", e, LogLevel.ERROR));
-		} finally {
-			try {
-				if (stream != null) {
-					stream.close();
-				}
-			} catch (IOException e) {}
 		}
 	}
 
 	public void save() {
 		if (broken) return;
-		FileOutputStream stream = null;
-		File parent = file.getParentFile();
-		if (parent != null) {
-			parent.mkdirs();
-		}
 		try {
-			stream = new FileOutputStream(file);
-			OutputStreamWriter writer = new OutputStreamWriter(stream, "UTF-8");
-			HashMap<String, Object> oData = new HashMap<String, Object>();
+			Files.createDirectories(filePath.getParent());
+			HashMap<String, Object> oData = new HashMap<>();
 			oData.putAll(data);
-			yaml.dump(oData, writer);
+			try (var writer = Files.newBufferedWriter(filePath, StandardCharsets.UTF_8)) {
+				yaml.dump(oData, writer);
+			}
 		} catch (Exception e) {
 			sdl.getEventPublisher().fireEvent(new LogEvent("", e, LogLevel.ERROR));
-		} finally {
-			try {
-				if (stream != null) {
-					stream.close();
-				}
-			} catch (IOException e) {}
 		}
 	}
 	

@@ -1,0 +1,56 @@
+[, 1, two, , four, ]
++[SimpleDataLib[test]] SQLite check failed.
+2java.lang.ClassNotFoundException: org.sqlite.JDBC
+\	at java.base/jdk.internal.loader.BuiltinClassLoader.loadClass(BuiltinClassLoader.java:641)
+_	at java.base/jdk.internal.loader.ClassLoaders$AppClassLoader.loadClass(ClassLoaders.java:188)
+D	at java.base/java.lang.ClassLoader.loadClass(ClassLoader.java:526)
+6	at java.base/java.lang.Class.forName0(Native Method)
+6	at java.base/java.lang.Class.forName(Class.java:423)
+6	at java.base/java.lang.Class.forName(Class.java:414)
+K	at regalowl.simpledatalib.sql.SQLManager.checkSQLLite(SQLManager.java:90)
+M	at regalowl.simpledatalib.sql.SQLManager.createDatabase(SQLManager.java:75)
+d	at regalowl.simpledatalib.sql.TestWriteAndRead.testCreateShutdownAndLoad(TestWriteAndRead.java:23)
+j	at java.base/jdk.internal.reflect.DirectMethodHandleAccessor.invoke(DirectMethodHandleAccessor.java:103)
+?	at java.base/java.lang.reflect.Method.invoke(Method.java:580)
+Y	at org.junit.runners.model.FrameworkMethod$1.runReflectiveCall(FrameworkMethod.java:59)
+X	at org.junit.internal.runners.model.ReflectiveCallable.run(ReflectiveCallable.java:12)
+W	at org.junit.runners.model.FrameworkMethod.invokeExplosively(FrameworkMethod.java:56)
+V	at org.junit.internal.runners.statements.InvokeMethod.evaluate(InvokeMethod.java:17)
+E	at org.junit.runners.ParentRunner$3.evaluate(ParentRunner.java:306)
+Y	at org.junit.runners.BlockJUnit4ClassRunner$1.evaluate(BlockJUnit4ClassRunner.java:100)
+B	at org.junit.runners.ParentRunner.runLeaf(ParentRunner.java:366)
+W	at org.junit.runners.BlockJUnit4ClassRunner.runChild(BlockJUnit4ClassRunner.java:103)
+V	at org.junit.runners.BlockJUnit4ClassRunner.runChild(BlockJUnit4ClassRunner.java:63)
+@	at org.junit.runners.ParentRunner$4.run(ParentRunner.java:331)
+D	at org.junit.runners.ParentRunner$1.schedule(ParentRunner.java:79)
+F	at org.junit.runners.ParentRunner.runChildren(ParentRunner.java:329)
+D	at org.junit.runners.ParentRunner.access$100(ParentRunner.java:66)
+E	at org.junit.runners.ParentRunner$2.evaluate(ParentRunner.java:293)
+E	at org.junit.runners.ParentRunner$3.evaluate(ParentRunner.java:306)
+>	at org.junit.runners.ParentRunner.run(ParentRunner.java:413)
+7	at org.junit.runner.JUnitCore.run(JUnitCore.java:137)
+7	at org.junit.runner.JUnitCore.run(JUnitCore.java:115)
+s	at org.gradle.api.internal.tasks.testing.junit.JUnitTestClassExecutor.runRequest(JUnitTestClassExecutor.java:176)
+o	at org.gradle.api.internal.tasks.testing.junit.JUnitTestClassExecutor.execute(JUnitTestClassExecutor.java:84)
+o	at org.gradle.api.internal.tasks.testing.junit.JUnitTestClassExecutor.execute(JUnitTestClassExecutor.java:45)
+ä	at org.gradle.api.internal.tasks.testing.junit.AbstractJUnitTestClassProcessor.processTestClass(AbstractJUnitTestClassProcessor.java:61)
+t	at org.gradle.api.internal.tasks.testing.SuiteTestClassProcessor.processTestClass(SuiteTestClassProcessor.java:54)
+j	at java.base/jdk.internal.reflect.DirectMethodHandleAccessor.invoke(DirectMethodHandleAccessor.java:103)
+?	at java.base/java.lang.reflect.Method.invoke(Method.java:580)
+U	at org.gradle.internal.dispatch.MethodInvocation.invokeOn(MethodInvocation.java:77)
+Y	at org.gradle.internal.dispatch.ReflectionDispatch.dispatch(ReflectionDispatch.java:28)
+Y	at org.gradle.internal.dispatch.ReflectionDispatch.dispatch(ReflectionDispatch.java:19)
+i	at org.gradle.internal.dispatch.ContextClassLoaderDispatch.dispatch(ContextClassLoaderDispatch.java:33)
+x	at org.gradle.internal.dispatch.ProxyDispatchAdapter$DispatchingInvocationHandler.invoke(ProxyDispatchAdapter.java:88)
+C	at jdk.proxy1/jdk.proxy1.$Proxy4.processTestClass(Unknown Source)
+W	at org.gradle.api.internal.tasks.testing.worker.TestWorker$2.run(TestWorker.java:177)
+n	at org.gradle.api.internal.tasks.testing.worker.TestWorker.executeAndMaintainThreadName(TestWorker.java:126)
+Y	at org.gradle.api.internal.tasks.testing.worker.TestWorker.execute(TestWorker.java:103)
+X	at org.gradle.api.internal.tasks.testing.worker.TestWorker.execute(TestWorker.java:63)
+j	at org.gradle.process.internal.worker.child.ActionExecutionWorker.execute(ActionExecutionWorker.java:56)
+Ç	at org.gradle.process.internal.worker.child.SystemApplicationClassLoaderWorker.call(SystemApplicationClassLoaderWorker.java:122)
+Å	at org.gradle.process.internal.worker.child.SystemApplicationClassLoaderWorker.call(SystemApplicationClassLoaderWorker.java:72)
+]	at worker.org.gradle.process.internal.worker.GradleWorkerMain.run(GradleWorkerMain.java:69)
+^	at worker.org.gradle.process.internal.worker.GradleWorkerMain.main(GradleWorkerMain.java:74)
+
+M[SimpleDataLib[test]]Database connection failed. Attempting to disable test.

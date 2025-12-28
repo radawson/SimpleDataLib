@@ -1,22 +1,23 @@
 package regalowl.simpledatalib.file;
 
-
-
 import java.io.File;
 import java.util.ArrayList;
-import java.util.Timer;
-import java.util.TimerTask;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 
 import regalowl.simpledatalib.SimpleDataLib;
 
 
 public class YamlHandler {
     private SimpleDataLib sdl;
-    private Timer timer;
+    private ScheduledExecutorService scheduler;
+    private ScheduledFuture<?> saveTaskFuture;
     private Long saveInterval;
-    private ArrayList<String> brokenFiles = new ArrayList<String>();
-    private ConcurrentHashMap<String, FileConfiguration> configs = new ConcurrentHashMap<String, FileConfiguration>();
+    private ArrayList<String> brokenFiles = new ArrayList<>();
+    private ConcurrentHashMap<String, FileConfiguration> configs = new ConcurrentHashMap<>();
     
     public YamlHandler(SimpleDataLib sdl) {
     	this.sdl = sdl;
@@ -74,17 +75,23 @@ public class YamlHandler {
 	 */
 	public void startSaveTask(long interval) {
 		this.saveInterval = interval;
-		if (timer != null) {timer.cancel();}
-		timer = new Timer();
-		timer.schedule(new SaveTask(), saveInterval, saveInterval);
+		stopSaveTask();
+		
+		if (scheduler == null) {
+			scheduler = new ScheduledThreadPoolExecutor(1, r -> {
+				Thread t = new Thread(r, "SimpleDataLib-YamlSaveTask");
+				t.setDaemon(true);
+				return t;
+			});
+		}
+		
+		saveTaskFuture = scheduler.scheduleWithFixedDelay(this::saveYamls, interval, interval, TimeUnit.MILLISECONDS);
 	}
+	
 	public void stopSaveTask() {
-		if (timer != null) {timer.cancel();}
-	}
-	private class SaveTask extends TimerTask {
-		@Override
-		public void run() {
-			saveYamls();
+		if (saveTaskFuture != null) {
+			saveTaskFuture.cancel(false);
+			saveTaskFuture = null;
 		}
 	}
 	
@@ -95,6 +102,17 @@ public class YamlHandler {
 	public void shutDown() {
 		stopSaveTask();
 		saveYamls();
+		if (scheduler != null) {
+			scheduler.shutdown();
+			try {
+				if (!scheduler.awaitTermination(5, TimeUnit.SECONDS)) {
+					scheduler.shutdownNow();
+				}
+			} catch (InterruptedException e) {
+				scheduler.shutdownNow();
+				Thread.currentThread().interrupt();
+			}
+		}
 	}
 
 	public void copyFromJar(String name) {

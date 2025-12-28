@@ -1,9 +1,6 @@
 package regalowl.simpledatalib.sql;
 
-
-
 import java.sql.Connection;
-import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
@@ -18,8 +15,6 @@ import regalowl.simpledatalib.events.LogLevel;
 import regalowl.simpledatalib.events.ShutdownEvent;
 import regalowl.simpledatalib.sql.WriteResult.WriteResultType;
 
-
-
 public class DatabaseConnection {
 
 	private SimpleDataLib sdl;
@@ -28,11 +23,36 @@ public class DatabaseConnection {
     private AtomicBoolean lock = new AtomicBoolean();
     private AtomicBoolean ignoreWrites = new AtomicBoolean();
     
+	/**
+	 * Constructor for creating a DatabaseConnection with a provided Connection from DataSource.
+	 * This is the preferred constructor when using HikariCP.
+	 */
+	public DatabaseConnection(SimpleDataLib sdl, Connection connection, boolean ignoreWrites) {
+		this.lock.set(false);
+		this.sdl = sdl;
+		this.connection = connection;
+		this.readOnly.set(false);
+		this.ignoreWrites.set(ignoreWrites);
+		try {
+			if (connection != null) {
+				connection.setAutoCommit(false);
+			}
+		} catch (SQLException e) {
+			sdl.getErrorWriter().writeError(e, "Failed to configure connection");
+		}
+	}
+	
+	/**
+	 * Legacy constructor for backward compatibility.
+	 * @deprecated Use DatabaseConnection(SimpleDataLib, Connection, boolean) instead
+	 */
+	@Deprecated
 	public DatabaseConnection(SimpleDataLib sdl, boolean readOnly) {
 		this.lock.set(false);
 		this.sdl = sdl;
 		this.readOnly.set(readOnly);
 		ignoreWrites.set(false);
+		openConnection();
 	}
 
 	public synchronized WriteResult write(List<WriteStatement> statements) {
@@ -151,7 +171,9 @@ public class DatabaseConnection {
 	}
 
 	public synchronized void prepareConnection() {
-		if (!isValid()) {fixConnection();}
+		if (!isValid()) {
+			fixConnection();
+		}
 	}
 	
 	private synchronized boolean isValid() {
@@ -172,55 +194,60 @@ public class DatabaseConnection {
 	}
 	
 	private synchronized void fixConnection() {
-		closeConnection();
-		openConnection();
-		if (isValid()) {return;}
+		// With HikariCP, connections are managed by the pool
+		// If connection is invalid, we should get a new one from the pool
+		// For now, log the error and let the pool handle reconnection
 		if (readOnly.get()) {
-			sdl.getEventPublisher().fireEvent(new LogEvent("[" + sdl.getName() + "]Fatal database connection error. " 
-		+ "Make sure your database is unlocked and readable in order to use this plugin." + " Disabling " 
-					+ sdl.getName() + ".", null, LogLevel.SEVERE));
+			sdl.getEventPublisher().fireEvent(new LogEvent("[" + sdl.getName() + "]Database connection error. " 
+		+ "Make sure your database is unlocked and readable in order to use this plugin.", null, LogLevel.SEVERE));
 		} else {
-			sdl.getEventPublisher().fireEvent(new LogEvent("[" + sdl.getName() + "]Fatal database connection error. " 
-		+ "Make sure your database is unlocked and writeable in order to use this plugin." + " Disabling " + sdl.getName() + ".", null, LogLevel.SEVERE));
+			sdl.getEventPublisher().fireEvent(new LogEvent("[" + sdl.getName() + "]Database connection error. " 
+		+ "Make sure your database is unlocked and writeable in order to use this plugin.", null, LogLevel.SEVERE));
 		}
-		sdl.getEventPublisher().fireEvent(new ShutdownEvent());
+		// Don't shutdown on connection errors - let HikariCP handle retries
 	}
 	
+	/**
+	 * Legacy method for backward compatibility.
+	 * With HikariCP, connections are obtained from the pool, not opened directly.
+	 * @deprecated Connections should be obtained from ConnectionPool
+	 */
+	@Deprecated
 	public synchronized void openConnection() {
-		if (sdl.getSQLManager().useMySQL()) {
+		// Try to get connection from DataSource if available
+		if (sdl.getSQLManager().getDataSource() != null) {
 			try {
-				String username = sdl.getSQLManager().getUsername();
-				String password = sdl.getSQLManager().getPassword();
-				int port = sdl.getSQLManager().getPort();
-				String host = sdl.getSQLManager().getHost();
-				String database = sdl.getSQLManager().getDatabase();
-				connection = DriverManager.getConnection("jdbc:mysql://" + host + ":" + port + "/" + database, username, password);
+				connection = sdl.getSQLManager().getDataSource().getConnection();
 				connection.setReadOnly(readOnly.get());
+				if (!readOnly.get()) {
+					connection.setAutoCommit(false);
+				}
 			} catch (Exception e) {
 				sdl.getErrorWriter().writeError(e, "Database connection error.");
 			}
 		} else {
-			try {
-				String sqlitePath = sdl.getSQLManager().getSQLitePath();
-				Class.forName("org.sqlite.JDBC");
-				connection = DriverManager.getConnection("jdbc:sqlite:" + sqlitePath);
-				connection.setReadOnly(readOnly.get());
-			} catch (Exception e) {
-				sdl.getErrorWriter().writeError(e, "Database connection error.");
-			}
+			// Fallback to old method if DataSource not available (shouldn't happen)
+			sdl.getErrorWriter().writeError(new IllegalStateException("DataSource not available"), "Cannot open connection without DataSource");
 		}
 	}
 	
 	public synchronized void closeConnection() {
 		if (connection == null) return;
 		try {
-			if (connection.getAutoCommit() == false) connection.rollback();
-		} catch (SQLException e) {}
+			if (!connection.getAutoCommit()) {
+				connection.rollback();
+			}
+		} catch (SQLException e) {
+			// Ignore rollback errors on close
+		}
 		try {
-			if (!connection.isClosed()) connection.close();
+			if (!connection.isClosed()) {
+				connection.close(); // Returns connection to HikariCP pool
+			}
 		} catch (Exception e) {
 			sdl.getErrorWriter().writeError(e, "Connection failed to close.");
 		}
+		connection = null;
 	}
 
 }

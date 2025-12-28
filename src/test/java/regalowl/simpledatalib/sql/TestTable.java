@@ -1,10 +1,10 @@
 package regalowl.simpledatalib.sql;
 
-import static org.junit.Assert.*;
+import static org.junit.jupiter.api.Assertions.*;
 
 import java.util.ArrayList;
 
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 import regalowl.simpledatalib.SimpleDataLib;
 import regalowl.simpledatalib.TestLogger;

@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="regalowl.simpledatalib.sql.TestTable" tests="1" skipped="0" failures="0" errors="0" timestamp="2025-12-28T00:50:45.324Z" hostname="LP7760-W1XMP6G3" time="0.027">
+  <properties/>
+  <testcase name="testLoadTableFromString" classname="regalowl.simpledatalib.sql.TestTable" time="0.027"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

@@ -1,11 +1,10 @@
 package regalowl.simpledatalib.event;
 
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import static org.junit.Assert.assertTrue;
-
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 
 import regalowl.simpledatalib.SimpleDataLib;
 import regalowl.simpledatalib.event.SDLEvent;
@@ -17,7 +16,7 @@ public class EventTest implements SDLEventListener {
 	private SimpleDataLib db;
 	private String errorMessage;
 	
-	@Before
+	@BeforeEach
 	public void init() {
 		db = new SimpleDataLib("test");
 		db.initialize();
@@ -40,7 +39,7 @@ public class EventTest implements SDLEventListener {
 		}
 	}
 	
-	@After
+	@AfterEach
 	public void after() {
 		assertTrue(errorMessage.equals("test"));
 	}

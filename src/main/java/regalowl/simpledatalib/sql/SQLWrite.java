@@ -5,8 +5,11 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Timer;
-import java.util.TimerTask;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
@@ -38,12 +41,12 @@ public class SQLWrite {
     private AtomicBoolean logSQL = new AtomicBoolean();
     
 	private AtomicBoolean writeActive = new AtomicBoolean();
-    private WriteTask writeTask;
+    private ScheduledFuture<?> writeTaskFuture;
 
     private AtomicBoolean writeSync = new AtomicBoolean();
     private SyncSQLWrite ssw;
     
-    private Timer t = new Timer();
+    private ScheduledExecutorService scheduler;
     
 	public SQLWrite(SimpleDataLib sdl, ConnectionPool pool, long writeTaskInterval) {
 		this.sdl = sdl;
@@ -55,8 +58,14 @@ public class SQLWrite {
 		processNext.set(0);
 		writeActive.set(false);
 		writeSync.set(false);
-		writeTask = new WriteTask();
-		t.schedule(writeTask, writeTaskInterval, writeTaskInterval);
+		
+		// Use ScheduledExecutorService instead of Timer
+		scheduler = new ScheduledThreadPoolExecutor(1, r -> {
+			Thread t = new Thread(r, "SimpleDataLib-WriteTask");
+			t.setDaemon(true);
+			return t;
+		});
+		writeTaskFuture = scheduler.scheduleWithFixedDelay(new WriteTask(), writeTaskInterval, writeTaskInterval, TimeUnit.MILLISECONDS);
 	}
 	
 	
@@ -95,26 +104,37 @@ public class SQLWrite {
 	}
 
 	
-    private class WriteTask extends TimerTask {
-    	private ArrayList<WriteStatement> writeData = new ArrayList<WriteStatement>();
-    	private DatabaseConnection database;
+    private class WriteTask implements Runnable {
+    	private final ArrayList<WriteStatement> writeData = new ArrayList<>();
+    	
     	@Override
 		public synchronized void run() {
-			if (writeQueue.size() == 0) {return;}
+			if (writeQueue.isEmpty()) {return;}
 			writeActive.set(true);
-			database = pool.getDatabaseConnection();
-			writeData.clear();
-			while (writeQueue.size() > 0) {
-				WriteStatement currentStatement = writeQueue.get(processNext.get());
-				writeData.add(currentStatement);
-				writeQueue.remove(processNext.getAndIncrement());
+			DatabaseConnection database = pool.getDatabaseConnection();
+			if (database == null) {
+				writeActive.set(false);
+				return;
 			}
-			write();
-			pool.returnConnection(database);
-			writeActive.set(false);
+			
+			try {
+				writeData.clear();
+				while (!writeQueue.isEmpty()) {
+					WriteStatement currentStatement = writeQueue.get(processNext.get());
+					if (currentStatement != null) {
+						writeData.add(currentStatement);
+					}
+					writeQueue.remove(processNext.getAndIncrement());
+				}
+				write(database);
+			} finally {
+				pool.returnConnection(database);
+				writeActive.set(false);
+			}
 		}
-		private synchronized void write() {
-			ArrayList<WriteStatement> writeDataCopy = new ArrayList<WriteStatement>();
+		
+		private synchronized void write(DatabaseConnection database) {
+			ArrayList<WriteStatement> writeDataCopy = new ArrayList<>();
 			writeDataCopy.addAll(writeData);
 			WriteResult result = database.write(writeDataCopy);
 			if (result.getStatus() == WriteResultType.SUCCESS && logSQL.get() && result.hasSuccessfulSQL()) {
@@ -129,8 +149,9 @@ public class SQLWrite {
 			}
 			writeDataCopy.clear();
 		}
+		
 		public synchronized ArrayList<WriteStatement> getActiveStatements() {
-			return writeData;
+			return new ArrayList<>(writeData);
 		}
     }
 	
@@ -144,11 +165,30 @@ public class SQLWrite {
 
 
 	public synchronized void shutDown() {
-		writeTask.cancel();
-		addWriteStatementsToQueue(writeTask.getActiveStatements());
-		DatabaseConnection dbConnection = new DatabaseConnection(sdl, false);
-		saveQueue(dbConnection);
-		dbConnection.closeConnection();
+		if (writeTaskFuture != null) {
+			writeTaskFuture.cancel(false);
+		}
+		if (scheduler != null) {
+			scheduler.shutdown();
+			try {
+				if (!scheduler.awaitTermination(5, TimeUnit.SECONDS)) {
+					scheduler.shutdownNow();
+				}
+			} catch (InterruptedException e) {
+				scheduler.shutdownNow();
+				Thread.currentThread().interrupt();
+			}
+		}
+		
+		// Get active statements from the last write task
+		WriteTask lastTask = new WriteTask();
+		addWriteStatementsToQueue(lastTask.getActiveStatements());
+		
+		DatabaseConnection dbConnection = pool.getDatabaseConnection();
+		if (dbConnection != null) {
+			saveQueue(dbConnection);
+			pool.returnConnection(dbConnection);
+		}
 	}
 
 	private void saveQueue(DatabaseConnection database) {
@@ -293,5 +333,47 @@ public class SQLWrite {
 		ssw.writeQueue();
 	}
 	
+	/**
+	 * Asynchronously writes a statement and returns a CompletableFuture with the result.
+	 * This is a modern async API that can be used alongside the traditional queue-based approach.
+	 * 
+	 * @param statement The write statement to execute
+	 * @return CompletableFuture that completes with the WriteResult
+	 */
+	public CompletableFuture<WriteResult> writeAsync(WriteStatement statement) {
+		return CompletableFuture.supplyAsync(() -> {
+			DatabaseConnection dbConnection = pool.getDatabaseConnection();
+			if (dbConnection == null) {
+				return new WriteResult(WriteResultType.ERROR);
+			}
+			try {
+				List<WriteStatement> statements = new ArrayList<>();
+				statements.add(statement);
+				return dbConnection.write(statements);
+			} finally {
+				pool.returnConnection(dbConnection);
+			}
+		}, scheduler != null ? scheduler : java.util.concurrent.ForkJoinPool.commonPool());
+	}
+	
+	/**
+	 * Asynchronously writes multiple statements and returns a CompletableFuture with the result.
+	 * 
+	 * @param statements The write statements to execute
+	 * @return CompletableFuture that completes with the WriteResult
+	 */
+	public CompletableFuture<WriteResult> writeAsync(List<WriteStatement> statements) {
+		return CompletableFuture.supplyAsync(() -> {
+			DatabaseConnection dbConnection = pool.getDatabaseConnection();
+			if (dbConnection == null) {
+				return new WriteResult(WriteResultType.ERROR);
+			}
+			try {
+				return dbConnection.write(statements);
+			} finally {
+				pool.returnConnection(dbConnection);
+			}
+		}, scheduler != null ? scheduler : java.util.concurrent.ForkJoinPool.commonPool());
+	}
 
 }

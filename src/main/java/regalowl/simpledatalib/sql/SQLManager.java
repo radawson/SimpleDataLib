@@ -2,10 +2,14 @@ package regalowl.simpledatalib.sql;
 
 import java.io.File;
 import java.sql.Connection;
-import java.sql.DriverManager;
 import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.Iterator;
+
+import javax.sql.DataSource;
+
+import com.zaxxer.hikari.HikariConfig;
+import com.zaxxer.hikari.HikariDataSource;
 
 import regalowl.simpledatalib.SimpleDataLib;
 import regalowl.simpledatalib.events.LogEvent;
@@ -29,6 +33,7 @@ public class SQLManager {
 	private SQLWrite sw;	
 	private SQLRead sr;
 	private ConnectionPool pool;
+	private HikariDataSource dataSource;
 	private int connectionPoolSize = 1;
 	private long writeTaskInverval = 30000L;
 	private ArrayList<Table> tables = new ArrayList<Table>();
@@ -45,6 +50,9 @@ public class SQLManager {
 	public void shutDown() {
 		if (pool != null) pool.shutDown();
 		if (sw != null) sw.shutDown();
+		if (dataSource != null && !dataSource.isClosed()) {
+			dataSource.close();
+		}
 	}
 	/**
 	 * Sets the database type to MySQL and uses the provided connection data.
@@ -75,7 +83,28 @@ public class SQLManager {
 			databaseOk = checkSQLLite();
 		}
 		if (databaseOk) {
-			pool = new ConnectionPool(sdl, connectionPoolSize);
+			// Create HikariCP DataSource
+			HikariConfig config = new HikariConfig();
+			if (useMySql) {
+				config.setJdbcUrl(createConnectionFormat(host, Integer.toString(port), database, useSSL));
+				config.setUsername(username);
+				config.setPassword(password);
+				config.setDriverClassName("com.mysql.cj.jdbc.Driver");
+				config.setMaximumPoolSize(connectionPoolSize);
+				config.setMinimumIdle(Math.max(1, connectionPoolSize / 2));
+			} else {
+				config.setJdbcUrl("jdbc:sqlite:" + getSQLitePath());
+				config.setDriverClassName("org.sqlite.JDBC");
+				config.setMaximumPoolSize(1); // SQLite doesn't support multiple connections well
+				config.setMinimumIdle(1);
+			}
+			config.setConnectionTimeout(30000);
+			config.setIdleTimeout(600000);
+			config.setMaxLifetime(1800000);
+			config.setLeakDetectionThreshold(60000);
+			dataSource = new HikariDataSource(config);
+			
+			pool = new ConnectionPool(sdl, dataSource, connectionPoolSize);
 			sw = new SQLWrite(sdl, pool, writeTaskInverval);
 			sr = new SQLRead(sdl, pool);
 			dataBaseExists = true;
@@ -88,13 +117,17 @@ public class SQLManager {
 		String path = getSQLitePath();
 		try {
 			Class.forName("org.sqlite.JDBC");
-			Connection connect = DriverManager.getConnection("jdbc:sqlite:" + path);
-			Statement state = connect.createStatement();
-			state.execute("DROP TABLE IF EXISTS dbtest12343432");
-			state.execute("CREATE TABLE IF NOT EXISTS dbtest12343432 (TEST VARCHAR(255))");
-			state.execute("DROP TABLE IF EXISTS dbtest12343432");
-			state.close();
-			connect.close();
+			try (HikariDataSource testDs = new HikariDataSource()) {
+				testDs.setJdbcUrl("jdbc:sqlite:" + path);
+				testDs.setDriverClassName("org.sqlite.JDBC");
+				testDs.setMaximumPoolSize(1);
+				try (Connection connect = testDs.getConnection();
+					 Statement state = connect.createStatement()) {
+					state.execute("DROP TABLE IF EXISTS dbtest12343432");
+					state.execute("CREATE TABLE IF NOT EXISTS dbtest12343432 (TEST VARCHAR(255))");
+					state.execute("DROP TABLE IF EXISTS dbtest12343432");
+				}
+			}
 			return true;
 		} catch (Exception e) {
 			if (sdl.debugEnabled()) {
@@ -106,16 +139,21 @@ public class SQLManager {
 	}
 	private boolean checkMySQL() {
 		try {
-			Class.forName("com.mysql.jdbc.Driver");
+			Class.forName("com.mysql.cj.jdbc.Driver");
 			String jdbcstringformat = createConnectionFormat(host, Integer.toString(port), database, useSSL);
-			// Use a different method since making such a method is easier for when Mysql requires SSL in the future.
-			Connection connect = DriverManager.getConnection(jdbcstringformat, username, password);
-			Statement state = connect.createStatement();
-			state.execute("DROP TABLE IF EXISTS dbtest12343432");
-			state.execute("CREATE TABLE IF NOT EXISTS dbtest12343432 (TEST VARCHAR(255))");
-			state.execute("DROP TABLE IF EXISTS dbtest12343432");
-			state.close();
-			connect.close();
+			try (HikariDataSource testDs = new HikariDataSource()) {
+				testDs.setJdbcUrl(jdbcstringformat);
+				testDs.setUsername(username);
+				testDs.setPassword(password);
+				testDs.setDriverClassName("com.mysql.cj.jdbc.Driver");
+				testDs.setMaximumPoolSize(1);
+				try (Connection connect = testDs.getConnection();
+					 Statement state = connect.createStatement()) {
+					state.execute("DROP TABLE IF EXISTS dbtest12343432");
+					state.execute("CREATE TABLE IF NOT EXISTS dbtest12343432 (TEST VARCHAR(255))");
+					state.execute("DROP TABLE IF EXISTS dbtest12343432");
+				}
+			}
 			return true;
 		} catch (Exception e) {
 			if (sdl.debugEnabled()) {
@@ -254,6 +292,13 @@ public class SQLManager {
 	}
 	
 	/**
+	 * Returns the HikariCP DataSource for advanced usage.
+	 */
+	public DataSource getDataSource() {
+		return dataSource;
+	}
+	
+	/**
 	 * This method will shrink the size of the MySQL or SQLite database.  
 	 * SQLWrite, SQLRead, and ConnectionPool objects will be reset.
 	 */
@@ -261,7 +306,17 @@ public class SQLManager {
 		boolean logSQL = sw.logSQL();
 		boolean logErrors = sw.logWriteErrors();
 		shutDown();
-		DatabaseConnection dbConnection = new DatabaseConnection(sdl, false);
+		
+		// Get a connection from the pool for shrink operations
+		DatabaseConnection dbConnection = pool.getDatabaseConnection();
+		if (dbConnection == null) {
+			sdl.getEventPublisher().fireEvent(new LogEvent("[SimpleDataLib["+sdl.getName()+"]]Failed to get connection for database shrink.", null, LogLevel.ERROR));
+			createDatabase();
+			sw.setLogSQL(logSQL);
+			sw.setErrorLogging(logErrors);
+			return;
+		}
+		
 		for (Table t:tables) {
 			String statement = "";
 			if (useMySQL()) {
@@ -279,7 +334,7 @@ public class SQLManager {
 				result.getFailedStatement().writeFailed(result.getException());
 			}
 		}
-		dbConnection.closeConnection();
+		pool.returnConnection(dbConnection);
 		createDatabase();
 		sw.setLogSQL(logSQL);
 		sw.setErrorLogging(logErrors);

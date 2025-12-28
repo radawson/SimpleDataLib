@@ -1,11 +1,11 @@
 package regalowl.simpledatalib;
 
-import static org.junit.Assert.*;
+import static org.junit.jupiter.api.Assertions.*;
 
 import java.util.ArrayList;
 import java.util.HashMap;
 
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 import regalowl.simpledatalib.CommonFunctions;
 

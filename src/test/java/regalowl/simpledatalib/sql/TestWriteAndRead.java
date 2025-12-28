@@ -1,8 +1,8 @@
 package regalowl.simpledatalib.sql;
 
-import static org.junit.Assert.*;
+import static org.junit.jupiter.api.Assertions.*;
 
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 import regalowl.simpledatalib.SimpleDataLib;
 import regalowl.simpledatalib.TestLogger;
@@ -51,6 +51,6 @@ public class TestWriteAndRead {
 		SQLRead sr = sm.getSQLRead();
 		QueryResult qr  = sr.select("SELECT * FROM hyperconomy_object_data WHERE ID = '1'");
 		qr.next();
-		assertTrue(qr.getString("DATA").equals("test"));
+		assertEquals("test", qr.getString("DATA"));
 	}
 }

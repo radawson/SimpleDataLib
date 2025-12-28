@@ -1,108 +1,82 @@
 package regalowl.simpledatalib.sql;
 
+import java.sql.Connection;
+import java.sql.SQLException;
 import java.util.ArrayList;
-import java.util.LinkedList;
-import java.util.Queue;
-import java.util.concurrent.locks.Condition;
-import java.util.concurrent.locks.Lock;
-import java.util.concurrent.locks.ReentrantLock;
+import java.util.HashSet;
+import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
+
+import javax.sql.DataSource;
 
 import regalowl.simpledatalib.SimpleDataLib;
 
 public class ConnectionPool {
 	private SimpleDataLib sdl;
-	
-	private int connectionCount;
-    private Queue<DatabaseConnection> connections = new LinkedList<DatabaseConnection>();
-    private Queue<DatabaseConnection> activeConnections = new LinkedList<DatabaseConnection>();
-    private Lock connectionLock = new ReentrantLock();
-    private Condition connectionAvailable = connectionLock.newCondition();
+	private DataSource dataSource;
+	private final Set<DatabaseConnection> activeConnections = new HashSet<>();
+	private final AtomicBoolean writesBlocked = new AtomicBoolean(false);
     
-    public ConnectionPool(SimpleDataLib sdl, int connectionCount) {
-    	this.connectionCount = connectionCount;
+    public ConnectionPool(SimpleDataLib sdl, DataSource dataSource, int connectionCount) {
     	this.sdl = sdl;
-    	for (int i = 0; i < connectionCount; i++) {
-    		returnConnection(new DatabaseConnection(sdl, false));
-    	}
+    	this.dataSource = dataSource;
     }
     
 	public int getActiveConnections() {
-		return activeConnections.size();
+		synchronized (activeConnections) {
+			return activeConnections.size();
+		}
 	}
     
 	public void blockDatabaseWrites() {
-		new Thread(new Runnable() {
-			public void run() {
-				ArrayList<DatabaseConnection> allConnections = new ArrayList<DatabaseConnection>();
-				while (allConnections.size() < connectionCount) {
-					allConnections.add(getDatabaseConnection());
-				}
-				for (DatabaseConnection dc:allConnections) {
-					dc.setIgnoreWrites(true);
-				}
-				for (DatabaseConnection dc:allConnections) {
-					returnConnection(dc);
-				}
+		writesBlocked.set(true);
+		synchronized (activeConnections) {
+			for (DatabaseConnection dc : new ArrayList<>(activeConnections)) {
+				dc.setIgnoreWrites(true);
 			}
-		}).start();
+		}
 	}
 	
 	public void allowDatabaseWrites() {
-		new Thread(new Runnable() {
-			public void run() {
-				ArrayList<DatabaseConnection> allConnections = new ArrayList<DatabaseConnection>();
-				while (allConnections.size() < connectionCount) {
-					allConnections.add(getDatabaseConnection());
-				}
-				for (DatabaseConnection dc:allConnections) {
-					dc.setIgnoreWrites(false);
-				}
-				for (DatabaseConnection dc:allConnections) {
-					returnConnection(dc);
-				}
+		writesBlocked.set(false);
+		synchronized (activeConnections) {
+			for (DatabaseConnection dc : new ArrayList<>(activeConnections)) {
+				dc.setIgnoreWrites(false);
 			}
-		}).start();
+		}
 	}
     
 	public void returnConnection(DatabaseConnection connection) {
-		connectionLock.lock();
-		try {
+		synchronized (activeConnections) {
 			activeConnections.remove(connection);
-			connections.add(connection);
-			connectionAvailable.signal();
-		} finally {
-			connectionLock.unlock();
 		}
+		// Connection will be closed automatically by HikariCP when returned
+		connection.closeConnection();
 	}
+	
 	public DatabaseConnection getDatabaseConnection() {
-		connectionLock.lock();
 		try {
-			while (connections.isEmpty()) {
-				try {
-					connectionAvailable.await();
-				} catch (InterruptedException e) {
-					sdl.getErrorWriter().writeError(e, null);
-				}
+			Connection conn = dataSource.getConnection();
+			DatabaseConnection dbConn = new DatabaseConnection(sdl, conn, writesBlocked.get());
+			synchronized (activeConnections) {
+				activeConnections.add(dbConn);
 			}
-			DatabaseConnection connect = connections.remove();
-			activeConnections.add(connect);
-			return connect;
-		} finally {
-			connectionLock.unlock();
+			return dbConn;
+		} catch (SQLException e) {
+			sdl.getErrorWriter().writeError(e, "Failed to get database connection from pool");
+			return null;
 		}
 	}
 	
 	public void shutDown() {
-		while (!activeConnections.isEmpty()){
-			DatabaseConnection dc = activeConnections.remove();
-			dc.lock();
-			dc.closeConnection();
+		synchronized (activeConnections) {
+			for (DatabaseConnection dc : new ArrayList<>(activeConnections)) {
+				dc.lock();
+				dc.closeConnection();
+			}
+			activeConnections.clear();
 		}
-		while (!connections.isEmpty()){
-			DatabaseConnection dc = connections.remove();
-			dc.lock();
-			dc.closeConnection();
-		}
+		// HikariCP DataSource will be closed by SQLManager
 	}
 
 }
