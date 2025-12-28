@@ -27,6 +27,7 @@ repositories {
     maven {
         url = uri("https://oss.sonatype.org/content/groups/public/")
     }
+    maven("https://repo.papermc.io/repository/maven-public/")
 }
 
 dependencies {
@@ -48,6 +49,9 @@ dependencies {
     
     // Logging
     compileOnly("org.slf4j:slf4j-api:2.0.16")
+    
+    // Bukkit/Paper API (provided at runtime)
+    compileOnly("io.papermc.paper:paper-api:1.21.1-R0.1-SNAPSHOT")
     
     // Testing
     testImplementation("org.junit.jupiter:junit-jupiter:5.10.2")
