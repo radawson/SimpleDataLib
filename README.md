@@ -8,6 +8,14 @@ SimpleDataLib provides fast and easy to use database access, YAML access, CSV ac
 - HikariCP connection pooling (included)
 - Modern async patterns using ScheduledExecutorService and CompletableFuture
 
+## Documentation
+
+Comprehensive documentation is available in the `docs/` folder:
+
+* **[Features Guide](docs/features.md)**: Detailed documentation of all SimpleDataLib features
+* **[Configuration Guide](docs/configuration.md)**: Complete setup and configuration reference
+* **[Usage Guide](docs/usage.md)**: Usage examples and best practices
+
 Want to use SimpleDataLib?
 ---------
 To create a SQLite database:
@@ -121,6 +129,61 @@ tasks.shadowJar {
 }
 ```
 
+## Quick Start
+
+### Basic Setup
+
+```java
+// Initialize SimpleDataLib
+SimpleDataLib sdl = new SimpleDataLib("MyPlugin");
+sdl.initialize();
+
+// Create database
+sdl.getSQLManager().createDatabase();
+
+// Or use MySQL
+sdl.getSQLManager().enableMySQL("host", "database", "username", "password", 3306, false);
+sdl.getSQLManager().createDatabase();
+```
+
+### Database Operations
+
+**Writing Data:**
+```java
+SQLWrite sw = sdl.getSQLManager().getSQLWrite();
+HashMap<String, String> values = new HashMap<>();
+values.put("name", "John");
+values.put("age", "25");
+sw.performInsert("users", values);
+```
+
+**Reading Data:**
+```java
+SQLRead sr = sdl.getSQLManager().getSQLRead();
+QueryResult data = sr.select("SELECT * FROM users WHERE name = ?", "John");
+while (data.next()) {
+    String name = data.getString("name");
+    int age = data.getInt("age");
+}
+data.close();
+```
+
+**Async Operations:**
+```java
+SQLWrite sw = sdl.getSQLManager().getSQLWrite();
+WriteStatement ws = new WriteStatement("INSERT INTO users (name, age) VALUES (?, ?)", sdl);
+ws.addParameter("John");
+ws.addParameter(25);
+CompletableFuture<WriteResult> future = sw.writeAsync(ws);
+future.thenAccept(result -> {
+    if (result.getStatus() == WriteResultType.SUCCESS) {
+        // Handle success
+    }
+});
+```
+
+For more examples and detailed usage, see the [Usage Guide](docs/usage.md).
+
 ## Migration Notes
 
 ### From Previous Versions
@@ -132,4 +195,28 @@ tasks.shadowJar {
 - **Modern APIs**: File operations now use NIO.2, CSV uses OpenCSV 5.9 API
 
 All existing APIs remain backward compatible, so no code changes are required for existing plugins.
+
+## Troubleshooting
+
+### Common Issues
+
+**Database Connection Failures:**
+- Verify database credentials
+- Check network connectivity
+- Ensure database server is running
+- Check firewall settings
+
+**Performance Issues:**
+- Adjust connection pool size
+- Use async operations for writes
+- Optimize queries
+- Consider connection pooling settings
+
+**Migration Issues:**
+- Backup database before migration
+- Test migrations on development server
+- Check migration logs
+- Verify schema compatibility
+
+For more troubleshooting help, see the [Usage Guide](docs/usage.md).
 
