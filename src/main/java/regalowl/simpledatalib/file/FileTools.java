@@ -20,6 +20,7 @@ import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
+import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.List;
@@ -41,9 +42,6 @@ import regalowl.simpledatalib.SimpleDataLib;
 import regalowl.simpledatalib.events.LogEvent;
 import regalowl.simpledatalib.events.LogLevel;
 import regalowl.simpledatalib.sql.QueryResult;
-import com.opencsv.CSVReader;
-import com.opencsv.CSVWriter;
-import com.opencsv.exceptions.CsvException;
 
 
 
@@ -284,13 +282,24 @@ public class FileTools {
 	
 	public QueryResult readCSV(String filePath) {
 		try {
+			// Check if OpenCSV is available
+			Class<?> csvReaderClass = Class.forName("com.opencsv.CSVReader");
+			
 			QueryResult qr = new QueryResult();
 			if (!fileExists(filePath)) {
 				return null;
 			}
 			Path path = Paths.get(filePath);
-			try (CSVReader reader = new CSVReader(Files.newBufferedReader(path, StandardCharsets.UTF_8))) {
-				List<String[]> rows = reader.readAll();
+			
+			// Use reflection to create CSVReader and read data
+			Object reader = csvReaderClass.getConstructor(java.io.Reader.class)
+					.newInstance(Files.newBufferedReader(path, StandardCharsets.UTF_8));
+			
+			try {
+				Method readAllMethod = csvReaderClass.getMethod("readAll");
+				@SuppressWarnings("unchecked")
+				List<String[]> rows = (List<String[]>) readAllMethod.invoke(reader);
+				
 				boolean header = true;
 				for (String[] row : rows) {
 					if (header) {
@@ -308,30 +317,64 @@ public class FileTools {
 						}
 					}
 				}
+				
+				// Close reader
+				Method closeMethod = reader.getClass().getMethod("close");
+				closeMethod.invoke(reader);
+			} catch (Exception e) {
+				// Try to close reader on error
+				try {
+					Method closeMethod = reader.getClass().getMethod("close");
+					closeMethod.invoke(reader);
+				} catch (Exception ignored) {}
+				throw e;
 			}
+			
 			return qr;
-		} catch (IOException | CsvException e) {
+		} catch (ClassNotFoundException e) {
+			sdl.getErrorWriter().writeError(e, "OpenCSV library not available. CSV functionality requires OpenCSV dependency.");
+			return null;
+		} catch (IOException e) {
 			sdl.getErrorWriter().writeError(e, "Failed to read CSV file: " + filePath);
+			return null;
+		} catch (Exception e) {
+			// Handle CsvException and other reflection exceptions
+			Throwable cause = e.getCause();
+			if (cause != null && cause instanceof Exception && cause.getClass().getName().equals("com.opencsv.exceptions.CsvException")) {
+				sdl.getErrorWriter().writeError((Exception) cause, "CSV parsing error in file: " + filePath);
+			} else {
+				sdl.getErrorWriter().writeError(e, "Failed to read CSV file: " + filePath);
+			}
 			return null;
 		}
 	}
 	
 	public void writeCSV(QueryResult data, String filePath) {
 		try {
+			// Check if OpenCSV is available
+			Class<?> csvWriterClass = Class.forName("com.opencsv.CSVWriter");
+			
 			if (fileExists(filePath)) {
 				deleteFile(filePath);
 			}
 			Path path = Paths.get(filePath);
 			Files.createDirectories(path.getParent());
 			
-			try (CSVWriter writer = new CSVWriter(Files.newBufferedWriter(path, StandardCharsets.UTF_8))) {
+			// Use reflection to create CSVWriter and write data
+			Object writer = csvWriterClass.getConstructor(java.io.Writer.class)
+					.newInstance(Files.newBufferedWriter(path, StandardCharsets.UTF_8));
+			
+			try {
+				Method writeNextMethod = csvWriterClass.getMethod("writeNext", String[].class);
+				
 				int colCount = data.getColumnCount();
 				String[] columnNames = new String[colCount];
 				ArrayList<String> namesArray = data.getColumnNames();
 				for (int i = 0; i < colCount; i++) {
 					columnNames[i] = namesArray.get(i);
 				}
-				writer.writeNext(columnNames);
+				writeNextMethod.invoke(writer, (Object) columnNames);
+				
 				while (data.next()) {
 					String[] row = new String[colCount];
 					for (int i = 0; i < colCount; i++) {
@@ -341,10 +384,25 @@ public class FileTools {
 						}
 						row[i] = cData;
 					}
-					writer.writeNext(row);
+					writeNextMethod.invoke(writer, (Object) row);
 				}
+				
+				// Close writer
+				Method closeMethod = writer.getClass().getMethod("close");
+				closeMethod.invoke(writer);
+			} catch (Exception e) {
+				// Try to close writer on error
+				try {
+					Method closeMethod = writer.getClass().getMethod("close");
+					closeMethod.invoke(writer);
+				} catch (Exception ignored) {}
+				throw e;
 			}
+		} catch (ClassNotFoundException e) {
+			sdl.getErrorWriter().writeError(e, "OpenCSV library not available. CSV functionality requires OpenCSV dependency.");
 		} catch (IOException e) {
+			sdl.getErrorWriter().writeError(e, "Failed to write CSV file: " + filePath);
+		} catch (Exception e) {
 			sdl.getErrorWriter().writeError(e, "Failed to write CSV file: " + filePath);
 		}
 	}
